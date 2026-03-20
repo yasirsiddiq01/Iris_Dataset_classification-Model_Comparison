@@ -1,0 +1,135 @@
+"""
+Iris Dataset Classification - Model Comparison
+Using scikit-learn's built-in Iris dataset
+"""
+
+# Import required libraries
+import sys
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from pandas.plotting import scatter_matrix
+from sklearn.datasets import load_iris
+
+# sklearn imports
+from sklearn import model_selection
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+
+# Version check
+print('=' * 50)
+print('Library Versions:')
+print(f'Python: {sys.version.split()[0]}')
+print(f'scikit-learn: {sklearn.__version__}')
+print(f'numpy: {np.__version__}')
+print(f'pandas: {pd.__version__}')
+print('=' * 50)
+
+# Load dataset from scikit-learn
+iris = load_iris()
+dataset = pd.DataFrame(data=iris.data, columns=iris.feature_names)
+dataset['class'] = iris.target
+
+# Add species names for better readability (optional)
+dataset['species'] = dataset['class'].map({0: 'setosa', 1: 'versicolor', 2: 'virginica'})
+
+# Exploratory Data Analysis
+print(f"\nDataset shape: {dataset.shape}")
+print(f"\nFirst 5 rows:\n{dataset.head()}")
+print(f"\nStatistical summary:\n{dataset.describe()}")
+print(f"\nClass distribution:\n{dataset['species'].value_counts()}")
+
+# Visualizations (using numeric columns only)
+features = dataset[iris.feature_names]  # Select only numeric features
+
+features.plot(kind='box', subplots=True, layout=(2,2), sharex=False, sharey=False)
+plt.suptitle('Box Plots of Iris Features')
+plt.tight_layout()
+plt.show()
+
+features.hist()
+plt.suptitle('Histograms of Iris Features')
+plt.tight_layout()
+plt.show()
+
+scatter_matrix(features, figsize=(12, 8))
+plt.suptitle('Scatter Matrix of Iris Features')
+plt.tight_layout()
+plt.show()
+
+# Prepare data for modeling
+X = iris.data  # Features (numpy array)
+Y = iris.target  # Target
+
+# Train-Test Split
+validation_size = 0.20
+seed = 42
+X_train, X_test, Y_train, Y_test = model_selection.train_test_split(
+    X, Y, test_size=validation_size, random_state=seed, stratify=Y
+)
+
+print(f"\nTraining set size: {X_train.shape[0]}")
+print(f"Test set size: {X_test.shape[0]}")
+
+# Spot Check Algorithms
+models = [
+    ('LR', LogisticRegression(max_iter=1000)),
+    ('LDA', LinearDiscriminantAnalysis()),
+    ('KNN', KNeighborsClassifier()),
+    ('CART', DecisionTreeClassifier()),
+    ('NB', GaussianNB()),
+    ('SVM', SVC())
+]
+
+# Evaluate each model
+results = []
+names_list = []
+scoring = 'accuracy'
+
+print("\n" + "=" * 50)
+print("10-Fold Cross-Validation Results:")
+print("=" * 50)
+
+for name, model in models:
+    kfold = model_selection.KFold(n_splits=10, random_state=seed, shuffle=True)
+    cv_results = model_selection.cross_val_score(model, X_train, Y_train, 
+                                                  cv=kfold, scoring=scoring)
+    results.append(cv_results)
+    names_list.append(name)
+    print(f"{name}: {cv_results.mean():.4f} (+/- {cv_results.std():.4f})")
+
+# Find best model
+best_idx = np.argmax([cv.mean() for cv in results])
+print("\n" + "=" * 50)
+print(f"Best Model: {names_list[best_idx]}")
+print(f"Mean Accuracy: {results[best_idx].mean():.4f}")
+print(f"Standard Deviation: {results[best_idx].std():.4f}")
+
+# Train best model on full training set and evaluate on test set
+print("\n" + "=" * 50)
+print(f"Evaluating {names_list[best_idx]} on Test Set:")
+best_model = models[best_idx][1]
+best_model.fit(X_train, Y_train)
+predictions = best_model.predict(X_test)
+print(f"Test Accuracy: {accuracy_score(Y_test, predictions):.4f}")
+print("\nConfusion Matrix:")
+print(confusion_matrix(Y_test, predictions))
+print("\nClassification Report:")
+print(classification_report(Y_test, predictions, 
+                           target_names=iris.target_names))
+
+# Optional: Box plot of algorithm comparison
+plt.figure(figsize=(10, 6))
+plt.boxplot(results, labels=names_list)
+plt.title('Algorithm Comparison - 10-Fold Cross-Validation')
+plt.ylabel('Accuracy')
+plt.xlabel('Algorithm')
+plt.xticks(rotation=45)
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
